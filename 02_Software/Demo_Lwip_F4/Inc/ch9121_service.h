@@ -3,6 +3,7 @@
 
 #include "lwip/err.h"
 #include "lwip/netif.h"
+#include <stdint.h>
 
 typedef enum
 {
@@ -38,6 +39,20 @@ typedef struct
   volatile err_t init_result;
   volatile err_t dhcp_start_result;
   volatile u16_t local_port;
+  volatile unsigned long search_requests;
+  volatile unsigned long get_requests;
+  volatile unsigned long set_requests;
+  volatile unsigned long accepted_sets;
+  volatile unsigned long applied_sets;
+  volatile u32_t last_rx_ms;
+  volatile u32_t last_tx_ms;
+  volatile err_t last_tx_result;
+  volatile ch9121_status_t last_rejection;
+  volatile u16_t last_sender_port;
+  volatile uint8_t last_command;
+  volatile uint8_t last_sender_ip[4];
+  volatile uint8_t last_set_sender_ip[4];
+  volatile uint8_t last_set_pc_mac[6];
 } ch9121_diagnostics_t;
 
 extern volatile ch9121_diagnostics_t g_ch9121_diagnostics;

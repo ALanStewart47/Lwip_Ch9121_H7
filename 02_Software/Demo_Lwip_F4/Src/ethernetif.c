@@ -49,8 +49,7 @@
 /* ETH Setting  */
 #define ETH_DMA_TRANSMIT_TIMEOUT      ( 20U )
 
-#define ETH_RX_BUFFER_SIZE            1000    /* Packets of this app's primary service protocol are smaller
-                                               * than this. Typical size is 1536. */
+#define ETH_RX_BUFFER_SIZE            ETH_RX_BUF_SIZE /* Match the DMA descriptor buffer length. */
 
 #define ETH_TX_BUFFER_MAX             ((ETH_TX_DESC_CNT) * 2U)
 /* ETH_RX_BUFFER_SIZE parameter is defined in lwipopts.h */
@@ -144,14 +143,14 @@ static void low_level_init(struct netif *netif)
   HAL_StatusTypeDef hal_eth_init_status ;
   /* Start ETH HAL Init */
 
-   uint8_t MACAddr[6] ;
+   static uint8_t MACAddr[6] ;
   heth.Instance = ETH;
   memcpy(MACAddr, ch9121_board_mac(), sizeof(MACAddr));
   heth.Init.MACAddr = &MACAddr[0];
   heth.Init.MediaInterface = HAL_ETH_RMII_MODE;
   heth.Init.TxDesc = DMATxDscrTab;
   heth.Init.RxDesc = DMARxDscrTab;
-  heth.Init.RxBuffLen = 1536;
+  heth.Init.RxBuffLen = ETH_RX_BUFFER_SIZE;
 
   hal_eth_init_status = HAL_ETH_Init(&heth);
 
@@ -303,6 +302,7 @@ static struct pbuf * low_level_input(struct netif *netif)
 void ethernetif_input(struct netif *netif)
 {
   struct pbuf *p = NULL;
+  uint32_t packets = 0U;
 
   do
   {
@@ -314,7 +314,8 @@ void ethernetif_input(struct netif *netif)
         pbuf_free(p);
       }
     }
-  } while(p!=NULL);
+    ++packets;
+  } while((p != NULL) && (packets < ETH_RX_BUFFER_CNT));
 }
 
 #if !LWIP_ARP

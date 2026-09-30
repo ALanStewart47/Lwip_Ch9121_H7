@@ -1,4 +1,6 @@
 #include "ch9121_service.h"
+#include "ch9121_port_config.h"
+#include "ch9121_transport.h"
 
 #include "lwip/dhcp.h"
 #include "lwip/ip4_addr.h"
@@ -6,6 +8,7 @@
 #include "lwip/pbuf.h"
 #include "lwip/prot/ethernet.h"
 #include "lwip/udp.h"
+#include "lwip/sys.h"
 
 #include <string.h>
 
@@ -53,6 +56,7 @@ typedef struct
   uint8_t ip[4];
   uint8_t mask[4];
   uint8_t gateway[4];
+  ch9121_port_config_t port1;
 } ch9121_config_t;
 
 volatile ch9121_diagnostics_t g_ch9121_diagnostics =
@@ -193,7 +197,10 @@ static uint8_t parse_name(const uint8_t field[CH9121_NAME_LENGTH], uint8_t outpu
 static uint8_t byte_is_supported_change(uint32_t offset)
 {
   return ((offset >= HWCFG_NAME_OFFSET) && (offset < HWCFG_NAME_OFFSET + CH9121_NAME_LENGTH)) ||
-         ((offset >= HWCFG_IP_OFFSET) && (offset < HWCFG_DHCP_OFFSET + 1U));
+         ((offset >= HWCFG_IP_OFFSET) && (offset < HWCFG_DHCP_OFFSET + 1U)) ||
+         ((offset >= PORTCFG1_OFFSET) &&
+          ch9121_port_mutable_byte(offset - PORTCFG1_OFFSET)) ||
+         (offset == PORTCFG0_OFFSET + CH9121_PORT_NAGLE_OFFSET);
 }
 
 static void encode_config(const ch9121_config_t *config, uint8_t output[CH9121_DATA_SIZE])
@@ -234,7 +241,7 @@ static void encode_config(const ch9121_config_t *config, uint8_t output[CH9121_D
   {
     uint32_t base = (port == 0U) ? PORTCFG0_OFFSET : PORTCFG1_OFFSET;
     output[base] = (uint8_t)port;
-    output[base + 1U] = 0U; /* Both transparent ports are outside this phase. */
+    output[base + 1U] = 0U; /* Port 2 remains disabled. */
     output[base + PORTCFG_BAUD_OFFSET] = 0x00U;
     output[base + PORTCFG_BAUD_OFFSET + 1U] = 0x4BU;
     output[base + PORTCFG_BAUD_OFFSET + 2U] = 0x00U;
@@ -242,7 +249,10 @@ static void encode_config(const ch9121_config_t *config, uint8_t output[CH9121_D
     output[base + PORTCFG_DATABITS_OFFSET] = 0x08U;
     output[base + PORTCFG_STOPBITS_OFFSET] = 0x01U;
     output[base + PORTCFG_PARITY_OFFSET] = 0x04U;
+    output[base + CH9121_PORT_NAGLE_OFFSET] = config->port1.nagle;
   }
+
+  ch9121_port_encode(&config->port1, &output[PORTCFG1_OFFSET]);
 
   for (i = CH9121_CONFIG_SIZE; i < CH9121_DATA_SIZE; ++i)
   {
@@ -275,6 +285,7 @@ static err_t send_reply(const uint8_t packet[CH9121_PACKET_SIZE])
   {
     ++g_ch9121_diagnostics.tx_errors;
     g_ch9121_diagnostics.last_status = CH9121_STATUS_SEND_ERROR;
+    g_ch9121_diagnostics.last_tx_result = ERR_MEM;
     return ERR_MEM;
   }
 
@@ -283,6 +294,7 @@ static err_t send_reply(const uint8_t packet[CH9121_PACKET_SIZE])
     pbuf_free(p);
     ++g_ch9121_diagnostics.tx_errors;
     g_ch9121_diagnostics.last_status = CH9121_STATUS_SEND_ERROR;
+    g_ch9121_diagnostics.last_tx_result = ERR_MEM;
     return ERR_MEM;
   }
 
@@ -290,9 +302,11 @@ static err_t send_reply(const uint8_t packet[CH9121_PACKET_SIZE])
   /* RAW UDP ports are host-order values; lwIP writes the wire-order header. */
   result = udp_sendto_if(service_pcb, p, &broadcast, CH9121_CLIENT_PORT, service_netif);
   pbuf_free(p);
+  g_ch9121_diagnostics.last_tx_result = result;
   if (result == ERR_OK)
   {
     ++g_ch9121_diagnostics.tx_packets;
+    g_ch9121_diagnostics.last_tx_ms = sys_now();
     g_ch9121_diagnostics.last_status = CH9121_STATUS_OK;
   }
   else
@@ -308,6 +322,7 @@ static uint8_t decode_candidate(const uint8_t data[CH9121_DATA_SIZE], ch9121_con
   uint8_t expected[CH9121_DATA_SIZE];
   uint32_t i;
 
+  *candidate = active_config;
   encode_config(&active_config, expected);
   for (i = 0U; i < CH9121_DATA_SIZE; ++i)
   {
@@ -345,16 +360,30 @@ static uint8_t decode_candidate(const uint8_t data[CH9121_DATA_SIZE], ch9121_con
     memcpy(candidate->mask, active_config.mask, sizeof(candidate->mask));
   }
 
+  if (!ch9121_port_decode(&data[PORTCFG1_OFFSET], &candidate->port1) ||
+      (data[PORTCFG0_OFFSET + CH9121_PORT_NAGLE_OFFSET] > 1U) ||
+      ((data[PORTCFG0_OFFSET + CH9121_PORT_NAGLE_OFFSET] != active_config.port1.nagle) &&
+       (data[PORTCFG0_OFFSET + CH9121_PORT_NAGLE_OFFSET] != candidate->port1.nagle)))
+  {
+    g_ch9121_diagnostics.last_status = CH9121_STATUS_BAD_CONFIG;
+    return 0U;
+  }
+
   return 1U;
 }
 
 static void send_nak(const uint8_t request[CH9121_PACKET_SIZE])
 {
   uint8_t response[CH9121_PACKET_SIZE];
+  ch9121_status_t reason = g_ch9121_diagnostics.last_status;
 
+  g_ch9121_diagnostics.last_rejection = reason;
   make_reply(response, CH9121_NAK_SET, &request[23], 0U);
   memcpy(&response[CH9121_HEADER_SIZE], &request[CH9121_HEADER_SIZE], CH9121_DATA_SIZE);
-  (void)send_reply(response);
+  if (send_reply(response) == ERR_OK)
+  {
+    g_ch9121_diagnostics.last_status = reason;
+  }
 }
 
 static void receive_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
@@ -365,19 +394,25 @@ static void receive_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
   ch9121_config_t candidate;
   uint8_t *data;
   uint8_t command;
+  uint8_t sender[4];
   uint32_t i;
   err_t result;
 
   LWIP_UNUSED_ARG(arg);
   LWIP_UNUSED_ARG(pcb);
-  LWIP_UNUSED_ARG(address);
-  LWIP_UNUSED_ARG(port);
+  g_ch9121_diagnostics.last_sender_port = port;
+  get_ipv4_bytes(ip_2_ip4(address), sender);
+  for (i = 0U; i < 4U; ++i)
+  {
+    g_ch9121_diagnostics.last_sender_ip[i] = sender[i];
+  }
 
   if (p == NULL)
   {
     return;
   }
   ++g_ch9121_diagnostics.rx_packets;
+  g_ch9121_diagnostics.last_rx_ms = sys_now();
 
   if ((p->tot_len != CH9121_PACKET_SIZE) ||
       (pbuf_copy_partial(p, request, CH9121_PACKET_SIZE, 0U) != CH9121_PACKET_SIZE) ||
@@ -385,15 +420,19 @@ static void receive_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
   {
     ++g_ch9121_diagnostics.rejected_packets;
     g_ch9121_diagnostics.last_status = CH9121_STATUS_BAD_PACKET;
+    g_ch9121_diagnostics.last_rejection = CH9121_STATUS_BAD_PACKET;
     pbuf_free(p);
     return;
   }
 
   command = request[16];
+  g_ch9121_diagnostics.last_command = command;
   data = &request[CH9121_HEADER_SIZE];
   if (command == CH9121_CMD_SEARCH)
   {
     uint8_t name_length = 0U;
+
+    ++g_ch9121_diagnostics.search_requests;
 
     for (i = 0U; i < ETH_HWADDR_LEN; ++i)
     {
@@ -406,6 +445,7 @@ static void receive_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
     {
       ++g_ch9121_diagnostics.rejected_packets;
       g_ch9121_diagnostics.last_status = CH9121_STATUS_BAD_PACKET;
+      g_ch9121_diagnostics.last_rejection = CH9121_STATUS_BAD_PACKET;
       pbuf_free(p);
       return;
     }
@@ -437,6 +477,14 @@ static void receive_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
   }
   else if ((command == CH9121_CMD_GET) || (command == CH9121_CMD_SET))
   {
+    if (command == CH9121_CMD_GET)
+    {
+      ++g_ch9121_diagnostics.get_requests;
+    }
+    else
+    {
+      ++g_ch9121_diagnostics.set_requests;
+    }
     for (i = 0U; i < ETH_HWADDR_LEN; ++i)
     {
       if (request[17U + i] != service_netif->hwaddr[i])
@@ -449,13 +497,14 @@ static void receive_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
     {
       ++g_ch9121_diagnostics.rejected_packets;
       g_ch9121_diagnostics.last_status = CH9121_STATUS_BAD_PACKET;
+      g_ch9121_diagnostics.last_rejection = CH9121_STATUS_BAD_PACKET;
       pbuf_free(p);
       return;
     }
 
     if (command == CH9121_CMD_GET)
     {
-      make_reply(response, CH9121_ACK_GET, NULL, 0xCCU);
+      make_reply(response, CH9121_ACK_GET, &request[23], 0xCCU);
       encode_config(&active_config, &response[CH9121_HEADER_SIZE]);
       result = send_reply(response);
       if (result != ERR_OK)
@@ -479,11 +528,25 @@ static void receive_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
       {
         make_reply(response, CH9121_ACK_SET, &request[23], 0U);
         memcpy(&response[CH9121_HEADER_SIZE], data, CH9121_DATA_SIZE);
+        /* Port 1 owns the shared Nagle setting. Accept an unchanged port 2
+         * shadow or a matching new shadow, and reply with the normalized value.
+         */
+        response[CH9121_HEADER_SIZE + PORTCFG0_OFFSET + CH9121_PORT_NAGLE_OFFSET] =
+          candidate.port1.nagle;
         result = send_reply(response);
         if (result == ERR_OK)
         {
           pending_config = candidate;
           apply_pending = 1U;
+          ++g_ch9121_diagnostics.accepted_sets;
+          for (i = 0U; i < 4U; ++i)
+          {
+            g_ch9121_diagnostics.last_set_sender_ip[i] = g_ch9121_diagnostics.last_sender_ip[i];
+          }
+          for (i = 0U; i < 6U; ++i)
+          {
+            g_ch9121_diagnostics.last_set_pc_mac[i] = request[23U + i];
+          }
         }
         else
         {
@@ -534,6 +597,7 @@ err_t ch9121_service_init(struct netif *netif)
   /* Keep a static backup for a later switch to static mode, but start this
      validation build with DHCP enabled and no preassigned IPv4 address. */
   active_config.dhcp = 1U;
+  ch9121_port_defaults(&active_config.port1);
 
   IP4_ADDR(&ip, 0U, 0U, 0U, 0U);
   IP4_ADDR(&mask, 0U, 0U, 0U, 0U);
@@ -580,6 +644,7 @@ err_t ch9121_service_init(struct netif *netif)
   }
   g_ch9121_diagnostics.last_status = CH9121_STATUS_OK;
   g_ch9121_diagnostics.init_result = ERR_OK;
+  ch9121_transport_init(service_netif, &active_config.port1);
   g_ch9121_diagnostics.init_stage = CH9121_INIT_READY;
   return ERR_OK;
 }
@@ -589,12 +654,18 @@ void ch9121_service_process(void)
   ch9121_config_t previous;
   err_t result;
 
+  ch9121_transport_process();
+
   if ((apply_pending == 0U) || (service_netif == NULL))
   {
     return;
   }
 
   previous = active_config;
+  if (!netif_is_up(service_netif))
+  {
+    netif_set_up(service_netif);
+  }
   if ((previous.dhcp == 0U) && (pending_config.dhcp != 0U))
   {
     result = dhcp_start(service_netif);
@@ -618,6 +689,11 @@ void ch9121_service_process(void)
   }
 
   active_config = pending_config;
+  if (!ch9121_port_equal(&previous.port1, &active_config.port1))
+  {
+    ch9121_transport_configure(&active_config.port1);
+  }
+  ++g_ch9121_diagnostics.applied_sets;
   apply_pending = 0U;
   g_ch9121_diagnostics.last_status = CH9121_STATUS_OK;
 }
