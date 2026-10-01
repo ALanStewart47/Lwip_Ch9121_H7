@@ -1,4 +1,5 @@
 #include "ch9121_transport.h"
+#include "ch9121_protocol.h"
 
 #include "lwip/dhcp.h"
 #include "lwip/dns.h"
@@ -9,7 +10,6 @@
 
 #include <string.h>
 
-#define CH9121_ECHO_BUFFER_SIZE 4096U
 #define CH9121_RETRY_MS         1000U
 #define CH9121_DNS_REFRESH_MS   60000U
 
@@ -30,12 +30,7 @@ static uint8_t dns_pending;
 static uint8_t destination_ready;
 static uint32_t generation;
 static uint32_t retry_at;
-static uint32_t last_rx_at;
 static uint32_t dns_refresh_at;
-static uint8_t echo_buffer[CH9121_ECHO_BUFFER_SIZE];
-static uint8_t send_buffer[1024];
-static uint16_t echo_head;
-static uint16_t echo_count;
 
 static err_t tcp_received(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t error);
 static err_t tcp_sent_data(void *arg, struct tcp_pcb *pcb, u16_t length);
@@ -78,12 +73,6 @@ static void detach_callbacks(struct tcp_pcb *pcb)
   tcp_err(pcb, NULL);
 }
 
-static void clear_echo(void)
-{
-  echo_head = 0U;
-  echo_count = 0U;
-}
-
 static void stop_sockets(void)
 {
   ++generation;
@@ -110,7 +99,7 @@ static void stop_sockets(void)
   }
   connected = 0U;
   peer_closed = 0U;
-  clear_echo();
+  ch9121_protocol_reset_session();
   g_ch9121_transport_diagnostics.state = CH9121_TRANSPORT_DOWN;
   g_ch9121_transport_diagnostics.local_port = 0U;
 }
@@ -120,7 +109,7 @@ static void finish_close(void)
   struct tcp_pcb *pcb = connection;
   err_t result;
 
-  if (pcb == NULL)
+  if ((pcb == NULL) || (ch9121_protocol_tx_pending() != 0U))
   {
     return;
   }
@@ -131,7 +120,7 @@ static void finish_close(void)
     connection = NULL;
     connected = 0U;
     peer_closed = 0U;
-    clear_echo();
+    ch9121_protocol_reset_session();
     retry_at = sys_now() + CH9121_RETRY_MS;
     g_ch9121_transport_diagnostics.state = (listener != NULL) ?
       CH9121_TRANSPORT_LISTEN : CH9121_TRANSPORT_DOWN;
@@ -142,72 +131,12 @@ static void finish_close(void)
   }
 }
 
-static void send_echo(void)
-{
-  uint16_t length;
-  uint16_t i;
-  uint32_t maximum;
-  err_t result;
-
-  if ((connection == NULL) || (connected == 0U) ||
-      !netif_is_up(transport_netif) || !netif_is_link_up(transport_netif))
-  {
-    return;
-  }
-  maximum = (port_config.rx_packet_length == 0U) ? 1024U : port_config.rx_packet_length;
-  if ((peer_closed == 0U) && (port_config.rx_packet_timeout != 0U) &&
-      (echo_count < maximum) &&
-      ((uint32_t)(sys_now() - last_rx_at) < port_config.rx_packet_timeout * 5U))
-  {
-    return;
-  }
-  while (echo_count != 0U)
-  {
-    length = echo_count;
-    if (length > maximum)
-    {
-      length = (uint16_t)maximum;
-    }
-    if (length > tcp_sndbuf(connection))
-    {
-      length = tcp_sndbuf(connection);
-    }
-    if (length == 0U)
-    {
-      break;
-    }
-    for (i = 0U; i < length; ++i)
-    {
-      send_buffer[i] = echo_buffer[(echo_head + i) % CH9121_ECHO_BUFFER_SIZE];
-    }
-    result = tcp_write(connection, send_buffer, length, TCP_WRITE_FLAG_COPY);
-    if (result != ERR_OK)
-    {
-      if (result != ERR_MEM)
-      {
-        record_error(result);
-      }
-      break; /* Preserve bytes, retry after ACK/poll/main-loop progress. */
-    }
-    echo_head = (uint16_t)((echo_head + length) % CH9121_ECHO_BUFFER_SIZE);
-    echo_count = (uint16_t)(echo_count - length);
-    g_ch9121_transport_diagnostics.tx_bytes += length;
-  }
-  result = tcp_output(connection);
-  if ((result != ERR_OK) && (result != ERR_MEM))
-  {
-    record_error(result); /* lwIP still owns copied, unacknowledged data. */
-  }
-  if ((peer_closed != 0U) && (echo_count == 0U))
-  {
-    finish_close();
-  }
-}
-
 static err_t tcp_received(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t error)
 {
-  uint16_t tail;
-  uint16_t first;
+  uint8_t chunk[256];
+  uint16_t offset = 0U;
+  uint16_t length;
+  uint16_t copied;
 
   LWIP_UNUSED_ARG(arg);
   if (p == NULL)
@@ -219,23 +148,23 @@ static err_t tcp_received(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t 
   {
     return error; /* lwIP retains ownership when the callback refuses data. */
   }
-  if (p->tot_len > CH9121_ECHO_BUFFER_SIZE - echo_count)
+  if (p->tot_len > ch9121_protocol_rx_available())
   {
-    return ERR_MEM; /* No copy, no ACK, no free: lwIP retries refused_data. */
+    return ERR_MEM;
   }
-  tail = (uint16_t)((echo_head + echo_count) % CH9121_ECHO_BUFFER_SIZE);
-  first = (uint16_t)(CH9121_ECHO_BUFFER_SIZE - tail);
-  if (first > p->tot_len)
+  while (offset < p->tot_len)
   {
-    first = p->tot_len;
+    length = (uint16_t)(p->tot_len - offset);
+    if (length > sizeof(chunk))
+      length = sizeof(chunk);
+    copied = pbuf_copy_partial(p, chunk, length, offset);
+    if ((copied != length) || !ch9121_protocol_receive(chunk, length))
+    {
+      ch9121_protocol_reset_session();
+      return ERR_MEM;
+    }
+    offset = (uint16_t)(offset + length);
   }
-  (void)pbuf_copy_partial(p, &echo_buffer[tail], first, 0U);
-  if (first < p->tot_len)
-  {
-    (void)pbuf_copy_partial(p, echo_buffer, (u16_t)(p->tot_len - first), first);
-  }
-  echo_count = (uint16_t)(echo_count + p->tot_len);
-  last_rx_at = sys_now();
   g_ch9121_transport_diagnostics.rx_bytes += p->tot_len;
   tcp_recved(pcb, p->tot_len);
   pbuf_free(p);
@@ -247,7 +176,7 @@ static err_t tcp_sent_data(void *arg, struct tcp_pcb *pcb, u16_t length)
   LWIP_UNUSED_ARG(arg);
   LWIP_UNUSED_ARG(pcb);
   LWIP_UNUSED_ARG(length);
-  return ERR_OK; /* The main loop drains the bounded echo queue. */
+  return ERR_OK;
 }
 
 static err_t tcp_polled(void *arg, struct tcp_pcb *pcb)
@@ -265,7 +194,7 @@ static void tcp_failed(void *arg, err_t error)
     connection = NULL;
     connected = 0U;
     peer_closed = 0U;
-    clear_echo();
+    ch9121_protocol_reset_session();
     record_error(error);
     g_ch9121_transport_diagnostics.state = (listener != NULL) ?
       CH9121_TRANSPORT_LISTEN : CH9121_TRANSPORT_DOWN;
@@ -276,10 +205,7 @@ static void session_ready(struct tcp_pcb *pcb)
 {
   connected = 1U;
   peer_closed = 0U;
-  if (port_config.clear_on_connect != 0U)
-  {
-    clear_echo();
-  }
+  ch9121_protocol_reset_session();
   if (port_config.nagle != 0U)
   {
     tcp_nagle_enable(pcb);
@@ -543,6 +469,7 @@ void ch9121_transport_init(struct netif *netif, const ch9121_port_config_t *conf
   transport_netif = netif;
   memset(&previous_ip, 0, sizeof(previous_ip));
   previous_link = 0U;
+  ch9121_protocol_init();
   ch9121_transport_configure(config);
 }
 
@@ -601,5 +528,24 @@ void ch9121_transport_process(void)
       }
     }
   }
-  send_echo();
+  if ((connection != NULL) && (connected != 0U))
+  {
+    ch9121_protocol_process(connection);
+    if (ch9121_protocol_failed())
+    {
+      struct tcp_pcb *pcb = connection;
+      connection = NULL;
+      connected = 0U;
+      peer_closed = 0U;
+      detach_callbacks(pcb);
+      tcp_abort(pcb);
+      ch9121_protocol_reset_session();
+      g_ch9121_transport_diagnostics.state = (listener != NULL) ?
+        CH9121_TRANSPORT_LISTEN : CH9121_TRANSPORT_DOWN;
+    }
+    else if ((peer_closed != 0U) && (ch9121_protocol_tx_pending() == 0U))
+    {
+      finish_close();
+    }
+  }
 }

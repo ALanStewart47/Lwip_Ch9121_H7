@@ -30,7 +30,7 @@ typedef struct
 
 extern volatile ch9121_transport_diagnostics_t g_ch9121_transport_diagnostics;
 
-/* Network echo backend. No UART is selected or reconfigured here.
+/* TCP carries the controller protocol; UDP data mode remains an echo service.
  * UART framing parameters are retained by the configuration service.
  */
 void ch9121_transport_init(struct netif *netif, const ch9121_port_config_t *config);

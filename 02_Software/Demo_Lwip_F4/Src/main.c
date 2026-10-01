@@ -66,7 +66,7 @@ int main(void)
   }
   else
   {
-    printf("CH9121 port 1: TCP SERVER 6600, network echo; UART not connected.\n");
+    printf("CH9121 port 1: TCP SERVER 6600, controller protocol; UART not connected.\n");
   }
 	
   while (1)
