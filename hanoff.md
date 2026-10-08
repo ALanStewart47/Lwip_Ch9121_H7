@@ -1,6 +1,6 @@
 # 项目交接文档
 
-最后更新：2026-10-02（Asia/Taipei）  
+最后更新：2026-10-08（Asia/Taipei；本次仅处理 Git 遗留锁）
 当前阶段：F407 端口1 TCP 已接入模块化控制器的 ASCII、扩展 ASCII、CA/CB/CC 协议，TCP 默认 SERVER 6600；参数保存在 RAM。Keil ARMCC V5.06 update 3 本次构建 0 错误、0 警告，工程登记和协议向量静态检查通过。未烧录、未进行目标端协议或网络实测；TCP 重连参数保持、CH9121 搜索/GET 回归仍待实机验证。配置服务 UDP 与 UDP 数据回显保留；真实 UART 透传未实现。H743 历史记录保留在后文。  
 当前授权：按用户确认的 F4 TCP 控制协议移植范围修改固件、Keil 工程登记及本交接文档；完成一次 Keil 构建和轻量协议检查，实机验收单独记录。
 
@@ -297,3 +297,9 @@
 3. 继续保持 UART 透传未实现；端口1业务 UART 参数只保存在 RAM。
 
 恢复入口：打开 `02_Software/Demo_Lwip_F4/MDK-ARM/YS-F4STD.uvprojx`；主适配分别位于 `Src/ch9121_protocol.c`、`Src/protocol_ram.c` 和 `Src/ch9121_transport.c`，源协议副本位于 `Protocol/`。
+
+## Git 仓库维护（2026-10-08）
+
+- 用户提交时 `git update-index --force-remove` 报 `.git/index.lock` 已存在，退出码 128。现场锁文件为 0 字节；检查时没有运行中的 Git 进程，锁文件可独占打开。TortoiseGit 窗口启动时间晚于锁文件，按遗留锁处理；最初产生遗留锁的原因尚未确定。
+- 已将锁文件移到 `.git/index.lock.stale-20261008-102339` 保留备份。随后 `git update-index --refresh --ignore-missing` 成功经过索引锁流程；退出码 1 对应现有文件的 `needs update`，未再出现锁冲突。前后 `git ls-files --stage` 完全一致，检查结束时 `index.lock` 不存在，`git status` 退出码 0。
+- 未暂存、提交或推送。原有参考目录删除和 Keil 工程选项修改保留，用户可在 TortoiseGit 刷新后核对提交列表并重试。本次仅处理 Git 仓库维护，固件构建及实机验证状态不变。
