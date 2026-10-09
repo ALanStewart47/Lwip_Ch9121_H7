@@ -156,13 +156,13 @@ static void low_level_init(struct netif *netif)
 
   if (hal_eth_init_status == HAL_OK)
   {
-		printf("ETH³õÊ¼»¯³É¹¦\n");
+		printf("ETHï¿½ï¿½Ê¼ï¿½ï¿½ï¿½É¹ï¿½\n");
     /* Get link state */
     netif->flags |= NETIF_FLAG_LINK_UP;
   }
 	else
 	{
-	  printf("ETH³õÊ¼»¯Ê§°Ü\n");
+	  printf("ETHï¿½ï¿½Ê¼ï¿½ï¿½Ê§ï¿½ï¿½\n");
 	}
 	
   memset(&TxConfig, 0 , sizeof(ETH_TxPacketConfig));
@@ -306,7 +306,7 @@ void ethernetif_input(struct netif *netif)
 
   do
   {
-    p = low_level_input( netif );
+    p = low_level_  input( netif );
     if (p != NULL)
     {
       if (netif->input( p, netif) != ERR_OK )
@@ -433,28 +433,28 @@ u32_t sys_now(void)
 
 /* USER CODE BEGIN PHI IO Functions for User BSP */
 /**
-  * º¯Êý¹¦ÄÜ: ·½±ãÖÐ¶Ï´¦Àíº¯Êýµ÷ÓÃ
-  * ÊäÈë²ÎÊý: ÎÞ
-  * ·µ »Ø Öµ: ÎÞ
-  * Ëµ    Ã÷: ÎÞ
+  * ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½: ï¿½ï¿½ï¿½ï¿½ï¿½Ð¶Ï´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+  * ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½: ï¿½ï¿½
+  * ï¿½ï¿½ ï¿½ï¿½ Öµ: ï¿½ï¿½
+  * Ëµ    ï¿½ï¿½: ï¿½ï¿½
   */
 void lwip_IT_handle(void)
 {
-    //´ÓÍøÂç»º³åÇøÖÐ¶ÁÈ¡½ÓÊÕµ½µÄÊý¾Ý°ü²¢½«Æä·¢ËÍ¸øLWIP´¦Àí 
+    //ï¿½ï¿½ï¿½ï¿½ï¿½ç»ºï¿½ï¿½ï¿½ï¿½ï¿½Ð¶ï¿½È¡ï¿½ï¿½ï¿½Õµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ä·¢ï¿½Í¸ï¿½LWIPï¿½ï¿½ï¿½ï¿½ 
     ethernetif_input(&gnetif);
 }
 /**
-  * º¯Êý¹¦ÄÜ: ETHÊ±ÖÓÒý½Å³õÊ¼»¯
-  * ÊäÈë²ÎÊý: ÎÞ
-  * ·µ »Ø Öµ: ÎÞ
-  * Ëµ    Ã÷: ÎÞ
+  * ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½: ETHÊ±ï¿½ï¿½ï¿½ï¿½ï¿½Å³ï¿½Ê¼ï¿½ï¿½
+  * ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½: ï¿½ï¿½
+  * ï¿½ï¿½ ï¿½ï¿½ Öµ: ï¿½ï¿½
+  * Ëµ    ï¿½ï¿½: ï¿½ï¿½
   */
 void HAL_ETH_MspInit(ETH_HandleTypeDef *heth)
 { 
     GPIO_InitTypeDef GPIO_InitStructure;
-    /* Ê¹ÄÜGPIO¶Ë¿ÚÊ±ÖÓ */
+    /* Ê¹ï¿½ï¿½GPIOï¿½Ë¿ï¿½Ê±ï¿½ï¿½ */
     ETH_GPIO_ClK_ENABLE();
-    /* Ê¹ÄÜETHÍâÉèÊ±ÖÓ */
+    /* Ê¹ï¿½ï¿½ETHï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ */
     ETH_RCC_CLK_ENABLE();
     /**ETH GPIO Configuration
     PB2     ------> ETH_RST
@@ -517,7 +517,7 @@ void ethernet_link_check_state(struct netif *netif)
 
   if(netif_is_link_up(netif) && (PHYLinkState <= LAN8720A_STATUS_LINK_DOWN))
   {
-		printf("¶Ï¿ªÍøÏß£¬ÐèÖØÐÂÁ¬½Ó\n");
+		printf("ï¿½Ï¿ï¿½ï¿½ï¿½ï¿½ß£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½\n");
     netif_set_down(netif);
     netif_set_link_down(netif);
 

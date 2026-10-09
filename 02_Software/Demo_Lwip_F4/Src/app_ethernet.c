@@ -1,28 +1,28 @@
 /**
   ******************************************************************************
-  * ÎÄ¼şÃû³Ì: app_ethernet.c 
-  * ×÷    Õß: Ó²Ê¯Ç¶ÈëÊ½¿ª·¢ÍÅ¶Ó
-  * °æ    ±¾: V1.0
-  * ±àĞ´ÈÕÆÚ: 2022-11-20
-  * ¹¦    ÄÜ: LwIPĞ­Òé³õÊ¼»¯
+  * æ–‡ä»¶åç¨‹: app_ethernet.c 
+  * ä½œ    è€…: ç¡¬çŸ³åµŒå…¥å¼å¼€å‘å›¢é˜Ÿ
+  * ç‰ˆ    æœ¬: V1.0
+  * ç¼–å†™æ—¥æœŸ: 2022-11-20
+  * åŠŸ    èƒ½: LwIPåè®®åˆå§‹åŒ–
   ******************************************************************************
-  * ËµÃ÷£º
-  * ±¾Àı³ÌÅäÌ×Ó²Ê¯stm32¿ª·¢°åYS-F4STDÊ¹ÓÃ¡£
+  * è¯´æ˜ï¼š
+  * æœ¬ä¾‹ç¨‹é…å¥—ç¡¬çŸ³stm32å¼€å‘æ¿YS-F4STDä½¿ç”¨ã€‚
   * 
-  * ÌÔ±¦£º
-  * ÂÛÌ³£ºhttp://www.ing10bbs.com
-  * °æÈ¨¹éÓ²Ê¯Ç¶ÈëÊ½¿ª·¢ÍÅ¶ÓËùÓĞ£¬ÇëÎğÉÌÓÃ¡£
+  * æ·˜å®ï¼š
+  * è®ºå›ï¼šhttp://www.ing10bbs.com
+  * ç‰ˆæƒå½’ç¡¬çŸ³åµŒå…¥å¼å¼€å‘å›¢é˜Ÿæ‰€æœ‰ï¼Œè¯·å‹¿å•†ç”¨ã€‚
   ******************************************************************************
   */
-/* °üº¬Í·ÎÄ¼ş ----------------------------------------------------------------*/
+/* åŒ…å«å¤´æ–‡ä»¶ ----------------------------------------------------------------*/
 #include "stm32f4xx_hal.h"
 #include "lwip/dhcp.h"
 #include "app_ethernet.h"
 #include "ethernetif.h"
 
-/* Ë½ÓĞÀàĞÍ¶¨Òå --------------------------------------------------------------*/
-/* Ë½ÓĞºê¶¨Òå ----------------------------------------------------------------*/
-/* Ë½ÓĞ±äÁ¿ ------------------------------------------------------------------*/
+/* ç§æœ‰ç±»å‹å®šä¹‰ --------------------------------------------------------------*/
+/* ç§æœ‰å®å®šä¹‰ ----------------------------------------------------------------*/
+/* ç§æœ‰å˜é‡ ------------------------------------------------------------------*/
 #ifdef USE_DHCP
 #define MAX_DHCP_TRIES  4
 uint32_t DHCPfineTimer = 0;
@@ -33,15 +33,15 @@ Lwip_strut Lwip_data;
 
 uint32_t EthernetLinkTimer;
 
-/* À©Õ¹±äÁ¿ ------------------------------------------------------------------*/
+/* æ‰©å±•å˜é‡ ------------------------------------------------------------------*/
 
-/* Ë½ÓĞº¯ÊıÔ­ĞÎ --------------------------------------------------------------*/
-/* º¯ÊıÌå --------------------------------------------------------------------*/
+/* ç§æœ‰å‡½æ•°åŸå½¢ --------------------------------------------------------------*/
+/* å‡½æ•°ä½“ --------------------------------------------------------------------*/
 /**
-  * º¯Êı¹¦ÄÜ: ¶ÁÈ¡PHY¼Ä´æÆ÷Öµ
-  * ÊäÈë²ÎÊı: reg£ºÒª¶ÁÈ¡µÄ¼Ä´æÆ÷µØÖ·
-  * ·µ »Ø Öµ: 0£º¶ÁÈ¡³É¹¦£¬-1£º¶ÁÈ¡Ê§°Ü
-  * Ëµ    Ã÷: ÎŞ
+  * å‡½æ•°åŠŸèƒ½: è¯»å–PHYå¯„å­˜å™¨å€¼
+  * è¾“å…¥å‚æ•°: regï¼šè¦è¯»å–çš„å¯„å­˜å™¨åœ°å€
+  * è¿” å› å€¼: 0ï¼šè¯»å–æˆåŠŸï¼Œ-1ï¼šè¯»å–å¤±è´¥
+  * è¯´    æ˜: æ— 
   */
 int32_t ETH_PHY_ReadReg(uint16_t reg,uint32_t *regval)
 {
@@ -51,10 +51,10 @@ int32_t ETH_PHY_ReadReg(uint16_t reg,uint32_t *regval)
 }
 
 /**
-  * º¯Êı¹¦ÄÜ: ÏòLAN8720AÖ¸¶¨¼Ä´æÆ÷Ğ´ÈëÖµ
-  * ÊäÈë²ÎÊı: reg£ºÒª¶ÁÈ¡µÄ¼Ä´æÆ÷µØÖ· £¬value:ÒªĞ´ÈëµÄÖµ
-  * ·µ »Ø Öµ: 0£ºĞ´ÈëÕı³££¬-1£ºĞ´ÈëÊ§°Ü
-  * Ëµ    Ã÷: ÎŞ
+  * å‡½æ•°åŠŸèƒ½: å‘LAN8720AæŒ‡å®šå¯„å­˜å™¨å†™å…¥å€¼
+  * è¾“å…¥å‚æ•°: regï¼šè¦è¯»å–çš„å¯„å­˜å™¨åœ°å€ ï¼Œvalue:è¦å†™å…¥çš„å€¼
+  * è¿” å› å€¼: 0ï¼šå†™å…¥æ­£å¸¸ï¼Œ-1ï¼šå†™å…¥å¤±è´¥
+  * è¯´    æ˜: æ— 
   */
 int32_t ETH_PHY_WriteReg(uint16_t reg,uint16_t value)
 {
@@ -65,10 +65,10 @@ int32_t ETH_PHY_WriteReg(uint16_t reg,uint16_t value)
 }
 
 /**
-  * º¯Êı¹¦ÄÜ: ¿ªÆôLAN8720AµÄ×ÔĞ­ÉÌ¹¦ÄÜ
-  * ÊäÈë²ÎÊı: ÎŞ
-  * ·µ »Ø Öµ: ÎŞ
-  * Ëµ    Ã÷: ÎŞ
+  * å‡½æ•°åŠŸèƒ½: å¼€å¯LAN8720Açš„è‡ªåå•†åŠŸèƒ½
+  * è¾“å…¥å‚æ•°: æ— 
+  * è¿” å› å€¼: æ— 
+  * è¯´    æ˜: æ— 
   */
 void LAN8720A_StartAutoNego(void)
 {
@@ -79,21 +79,21 @@ void LAN8720A_StartAutoNego(void)
 }
 
 /**
-  * º¯Êı¹¦ÄÜ: »ñÈ¡LAN8720AµÄÁ¬½Ó×´Ì¬
-  * ÊäÈë²ÎÊı: ÎŞ
-  * ·µ »Ø Öµ: LAN8720A_STATUS_LINK_DOWN           £º Á¬½Ó¶Ï¿ª        
-  * Ëµ    Ã÷: ÎŞ
+  * å‡½æ•°åŠŸèƒ½: è·å–LAN8720Açš„è¿æ¥çŠ¶æ€
+  * è¾“å…¥å‚æ•°: æ— 
+  * è¿” å› å€¼: LAN8720A_STATUS_LINK_DOWN           ï¼š è¿æ¥æ–­å¼€        
+  * è¯´    æ˜: æ— 
   */
 uint32_t check_link_state(void)
 {
 	
 	uint32_t readval=0;
 	
-	/* ¶ÁÈ¡Á½±é£¬È·±£¶ÁÈ¡ÕıÈ·£¡£¡£¡ */
+	/* è¯»å–ä¸¤éï¼Œç¡®ä¿è¯»å–æ­£ç¡®ï¼ï¼ï¼ */
 	ETH_PHY_ReadReg(LAN8720A_BSR,&readval);
 	ETH_PHY_ReadReg(LAN8720A_BSR,&readval);
 	
-	/* »ñÈ¡Á¬½Ó×´Ì¬(Ó²¼ş£¬ÍøÏßµÄÁ¬½Ó£¬²»ÊÇTCP¡¢UDPµÈÈí¼şÁ¬½Ó£¡) */
+	/* è·å–è¿æ¥çŠ¶æ€(ç¡¬ä»¶ï¼Œç½‘çº¿çš„è¿æ¥ï¼Œä¸æ˜¯TCPã€UDPç­‰è½¯ä»¶è¿æ¥ï¼) */
 	if((readval&LAN8720A_BSR_LINK_STATUS)==0)
 	{
 
@@ -104,35 +104,35 @@ uint32_t check_link_state(void)
 }	
 
 /**
-  * º¯Êı¹¦ÄÜ: »ñÈ¡LAN8720AµÄÁ¬½Ó×´Ì¬
-  * ÊäÈë²ÎÊı: ÎŞ
-  * ·µ »Ø Öµ: LAN8720A_STATUS_LINK_DOWN           £º Á¬½Ó¶Ï¿ª 
-              LAN8720A_STATUS_AUTONEGO_NOTDONE    £º ×Ô¶¯Ğ­ÉÌÍê³É
-              LAN8720A_STATUS_100MBITS_FULLDUPLEX £º 100MÈ«Ë«¹¤
-              LAN8720A_STATUS_100MBITS_HALFDUPLEX £º 100M°ëË«¹¤
-              LAN8720A_STATUS_10MBITS_FULLDUPLEX  £º 10MÈ«Ë«¹¤
-              LAN8720A_STATUS_10MBITS_HALFDUPLEX  £º 10M°ëË«¹¤              
-  * Ëµ    Ã÷: ÎŞ
+  * å‡½æ•°åŠŸèƒ½: è·å–LAN8720Açš„è¿æ¥çŠ¶æ€
+  * è¾“å…¥å‚æ•°: æ— 
+  * è¿” å› å€¼: LAN8720A_STATUS_LINK_DOWN           ï¼š è¿æ¥æ–­å¼€ 
+              LAN8720A_STATUS_AUTONEGO_NOTDONE    ï¼š è‡ªåŠ¨åå•†å®Œæˆ
+              LAN8720A_STATUS_100MBITS_FULLDUPLEX ï¼š 100Må…¨åŒå·¥
+              LAN8720A_STATUS_100MBITS_HALFDUPLEX ï¼š 100MåŠåŒå·¥
+              LAN8720A_STATUS_10MBITS_FULLDUPLEX  ï¼š 10Må…¨åŒå·¥
+              LAN8720A_STATUS_10MBITS_HALFDUPLEX  ï¼š 10MåŠåŒå·¥              
+  * è¯´    æ˜: æ— 
   */
 uint32_t ETH_link_check_state(void)
 {
     uint32_t readval=0;
     
-    /* ¶ÁÈ¡Á½±é£¬È·±£¶ÁÈ¡ÕıÈ·£¡£¡£¡ */
+    /* è¯»å–ä¸¤éï¼Œç¡®ä¿è¯»å–æ­£ç¡®ï¼ï¼ï¼ */
     ETH_PHY_ReadReg(LAN8720A_BSR,&readval);
     ETH_PHY_ReadReg(LAN8720A_BSR,&readval);
    
-    /* »ñÈ¡Á¬½Ó×´Ì¬(Ó²¼ş£¬ÍøÏßµÄÁ¬½Ó£¬²»ÊÇTCP¡¢UDPµÈÈí¼şÁ¬½Ó£¡) */
+    /* è·å–è¿æ¥çŠ¶æ€(ç¡¬ä»¶ï¼Œç½‘çº¿çš„è¿æ¥ï¼Œä¸æ˜¯TCPã€UDPç­‰è½¯ä»¶è¿æ¥ï¼) */
     if((readval&LAN8720A_BSR_LINK_STATUS)==0)
     {
 
       return LAN8720A_STATUS_LINK_DOWN;
     }
         
-    /* »ñÈ¡×Ô¶¯Ğ­ÉÌ×´Ì¬ */
+    /* è·å–è‡ªåŠ¨åå•†çŠ¶æ€ */
     ETH_PHY_ReadReg(LAN8720A_BCR,&readval);
 		 //printf("PHYLinkState=%x\n",readval);
-    if((readval&LAN8720A_BCR_AUTONEGO_EN)!=LAN8720A_BCR_AUTONEGO_EN)  /* Î´Ê¹ÄÜ×Ô¶¯Ğ­ÉÌ */
+    if((readval&LAN8720A_BCR_AUTONEGO_EN)!=LAN8720A_BCR_AUTONEGO_EN)  /* æœªä½¿èƒ½è‡ªåŠ¨åå•† */
     {
         if(((readval&LAN8720A_BCR_SPEED_SELECT)==LAN8720A_BCR_SPEED_SELECT)&&
                 ((readval&LAN8720A_BCR_DUPLEX_MODE)==LAN8720A_BCR_DUPLEX_MODE)) 
@@ -144,7 +144,7 @@ uint32_t ETH_link_check_state(void)
         else
             return LAN8720A_STATUS_10MBITS_HALFDUPLEX;
     }
-    else                                                             /* Ê¹ÄÜÁË×Ô¶¯Ğ­ÉÌ */
+    else                                                             /* ä½¿èƒ½äº†è‡ªåŠ¨åå•† */
     {
         ETH_PHY_ReadReg(LAN8720A_PHYSCSR,&readval);
         if((readval&LAN8720A_PHYSCSR_AUTONEGO_DONE)==0)
@@ -161,16 +161,16 @@ uint32_t ETH_link_check_state(void)
 }
 
 /**
-  * º¯Êı¹¦ÄÜ: ETHÖĞ¶Ï·şÎñº¯Êı
-  * ÊäÈë²ÎÊı: ÎŞ
-  * ·µ »Ø Öµ: ÎŞ
-  * Ëµ    Ã÷: ÎŞ
+  * å‡½æ•°åŠŸèƒ½: ETHä¸­æ–­æœåŠ¡å‡½æ•°
+  * è¾“å…¥å‚æ•°: æ— 
+  * è¿” å› å€¼: æ— 
+  * è¯´    æ˜: æ— 
   */
 void ETH_IRQHandler(void)
 {
   lwip_IT_handle();
-	__HAL_ETH_DMA_CLEAR_IT(&heth,ETH_DMA_IT_NIS);    //Çå³ıDMAÖĞ¶Ï±êÖ¾Î»
-	__HAL_ETH_DMA_CLEAR_IT(&heth,ETH_DMA_IT_R);      //Çå³ıDMA½ÓÊÕÖĞ¶Ï±êÖ¾Î»
+	__HAL_ETH_DMA_CLEAR_IT(&heth,ETH_DMA_IT_NIS);    //æ¸…é™¤DMAä¸­æ–­æ ‡å¿—ä½
+	__HAL_ETH_DMA_CLEAR_IT(&heth,ETH_DMA_IT_R);      //æ¸…é™¤DMAæ¥æ”¶ä¸­æ–­æ ‡å¿—ä½
 }
 
 
@@ -178,10 +178,10 @@ void ETH_IRQHandler(void)
 #ifdef USE_DHCP
 
 /**
-  * º¯Êı¹¦ÄÜ: DHCP»ñÈ¡º¯Êı
-  * ÊäÈë²ÎÊı: ÎŞ
-  * ·µ »Ø Öµ: ÎŞ
-  * Ëµ    Ã÷: ÎŞ
+  * å‡½æ•°åŠŸèƒ½: DHCPè·å–å‡½æ•°
+  * è¾“å…¥å‚æ•°: æ— 
+  * è¿” å› å€¼: æ— 
+  * è¯´    æ˜: æ— 
   */
 void DHCP_Process(struct netif *netif)
 {
@@ -206,34 +206,34 @@ void DHCP_Process(struct netif *netif)
       if (dhcp_supplied_address(netif)) 
       {
         DHCP_state = DHCP_ADDRESS_ASSIGNED; 
-        /* »ñÈ¡IPµØÖ· */
+        /* è·å–IPåœ°å€ */
         ipaddr=netif->ip_addr.addr;
         
         Lwip_data.MAC[3]=MAC_ADDR3;
         Lwip_data.MAC[2]=MAC_ADDR2;
         Lwip_data.MAC[1]=MAC_ADDR1;
         Lwip_data.MAC[0]=MAC_ADDR0;
-        printf (" MAC  µØÖ·:         %d %d %d %d\n", Lwip_data.MAC[0],Lwip_data.MAC[1],Lwip_data.MAC[2],Lwip_data.MAC[3]);  
+        printf (" MAC  åœ°å€:         %d %d %d %d\n", Lwip_data.MAC[0],Lwip_data.MAC[1],Lwip_data.MAC[2],Lwip_data.MAC[3]);  
                
         Lwip_data.IP[3]=(uint8_t)(ipaddr>>24);
         Lwip_data.IP[2]=(uint8_t)(ipaddr>>16);
         Lwip_data.IP[1]=(uint8_t)(ipaddr>>8);
         Lwip_data.IP[0]=(uint8_t)(ipaddr);
         printf (" DHCP GET IP:      %d %d %d %d\n", Lwip_data.IP[0],Lwip_data.IP[1],Lwip_data.IP[2],Lwip_data.IP[3]);  
-        /* »ñÈ¡×ÓÍøÑÚÂëµØÖ· */
+        /* è·å–å­ç½‘æ©ç åœ°å€ */
         netmask=netif->netmask.addr;
         Lwip_data.NetMask[3]=(uint8_t)(netmask>>24);
         Lwip_data.NetMask[2]=(uint8_t)(netmask>>16);
         Lwip_data.NetMask[1]=(uint8_t)(netmask>>8);
         Lwip_data.NetMask[0]=(uint8_t)(netmask);
-        printf (" DHCP GET ×ÓÍøÑÚÂë: %d %d %d %d\n", Lwip_data.NetMask[0],Lwip_data.NetMask[1],Lwip_data.NetMask[2],Lwip_data.NetMask[3]);  
-        /* »ñÈ¡Ä¬ÈÏÍø¹ØµØÖ· */
+        printf (" DHCP GET å­ç½‘æ©ç : %d %d %d %d\n", Lwip_data.NetMask[0],Lwip_data.NetMask[1],Lwip_data.NetMask[2],Lwip_data.NetMask[3]);  
+        /* è·å–é»˜è®¤ç½‘å…³åœ°å€ */
         gw=netif->gw.addr;
         Lwip_data.GateWay[3]=(uint8_t)(gw>>24);
         Lwip_data.GateWay[2]=(uint8_t)(gw>>16);
         Lwip_data.GateWay[1]=(uint8_t)(gw>>8);
         Lwip_data.GateWay[0]=(uint8_t)(gw);
-        printf (" DHCP GET Ä¬ÈÏÍø¹Ø: %d %d %d %d\n", Lwip_data.GateWay[0],Lwip_data.GateWay[1],Lwip_data.GateWay[2],Lwip_data.GateWay[3]);  
+        printf (" DHCP GET é»˜è®¤ç½‘å…³: %d %d %d %d\n", Lwip_data.GateWay[0],Lwip_data.GateWay[1],Lwip_data.GateWay[2],Lwip_data.GateWay[3]);  
 
 //        sprintf((char *)iptxt, "%s", ip4addr_ntoa((const ip4_addr_t *)&netif->ip_addr));        
 //        printf (" IP address assigned by a DHCP server: %s\n", iptxt);        
@@ -275,10 +275,10 @@ void DHCP_Process(struct netif *netif)
 }
 
 /**
-  * º¯Êı¹¦ÄÜ: DHCPÂÖÑ¯
-  * ÊäÈë²ÎÊı: ÎŞ
-  * ·µ »Ø Öµ: ÎŞ
-  * Ëµ    Ã÷: ÎŞ
+  * å‡½æ•°åŠŸèƒ½: DHCPè½®è¯¢
+  * è¾“å…¥å‚æ•°: æ— 
+  * è¿” å› å€¼: æ— 
+  * è¯´    æ˜: æ— 
   */
 void DHCP_Periodic_Handle(struct netif *netif)
 {  
@@ -310,10 +310,10 @@ void Ethernet_Link_Periodic_Handle(struct netif *netif)
 #endif
 
 /**
-  * º¯Êı¹¦ÄÜ: ÅäÖÃÍøÂç½Ó¿Ú
-  * ÊäÈë²ÎÊı: ÎŞ
-  * ·µ »Ø Öµ: ÎŞ
-  * Ëµ    Ã÷: ÎŞ
+  * å‡½æ•°åŠŸèƒ½: é…ç½®ç½‘ç»œæ¥å£
+  * è¾“å…¥å‚æ•°: æ— 
+  * è¿” å› å€¼: æ— 
+  * è¯´    æ˜: æ— 
   */
 void Netif_Config(void)
 {
@@ -321,7 +321,7 @@ void Netif_Config(void)
   ip_addr_t netmask;
   ip_addr_t gw;
   
-  /* ³õÊ¼»¯LWIPÄÚºË */
+  /* åˆå§‹åŒ–LWIPå†…æ ¸ */
   lwip_init();	
   /* Initializes the dynamic memory heap defined by MEM_SIZE.*/
 //  mem_init(); 
@@ -336,9 +336,9 @@ void Netif_Config(void)
   IP_ADDR4(&netmask,NETMASK_ADDR0,NETMASK_ADDR1,NETMASK_ADDR2,NETMASK_ADDR3);
   IP_ADDR4(&gw,GW_ADDR0,GW_ADDR1,GW_ADDR2,GW_ADDR3);
   
-	printf("¾²Ì¬IPµØÖ·........................%d.%d.%d.%d\r\n",IP_ADDR0,IP_ADDR1,IP_ADDR2,IP_ADDR3);
-	printf("×ÓÍøÑÚÂë..........................%d.%d.%d.%d\r\n",NETMASK_ADDR0,NETMASK_ADDR1,NETMASK_ADDR2,NETMASK_ADDR3);
-	printf("Ä¬ÈÏÍø¹Ø..........................%d.%d.%d.%d\r\n",GW_ADDR0,GW_ADDR1,GW_ADDR2,GW_ADDR3);
+	printf("é™æ€IPåœ°å€........................%d.%d.%d.%d\r\n",IP_ADDR0,IP_ADDR1,IP_ADDR2,IP_ADDR3);
+	printf("å­ç½‘æ©ç ..........................%d.%d.%d.%d\r\n",NETMASK_ADDR0,NETMASK_ADDR1,NETMASK_ADDR2,NETMASK_ADDR3);
+	printf("é»˜è®¤ç½‘å…³..........................%d.%d.%d.%d\r\n",GW_ADDR0,GW_ADDR1,GW_ADDR2,GW_ADDR3);
 	
 #endif /* USE_DHCP */
   
@@ -359,7 +359,7 @@ void ethernet_link_status_updated(struct netif *netif)
 {
   if (netif_is_link_up(netif))
   {
-    printf("³É¹¦Á¬½ÓÍø¿¨\n");
+    printf("æˆåŠŸè¿æ¥ç½‘å¡\n");
   }
   else
   {
@@ -367,4 +367,4 @@ void ethernet_link_status_updated(struct netif *netif)
   }
 }
 
-/******************* (C) COPYRIGHT 2020-2030 Ó²Ê¯Ç¶ÈëÊ½¿ª·¢ÍÅ¶Ó *****END OF FILE****/
+/******************* (C) COPYRIGHT 2020-2030 ç¡¬çŸ³åµŒå…¥å¼å¼€å‘å›¢é˜Ÿ *****END OF FILE****/
